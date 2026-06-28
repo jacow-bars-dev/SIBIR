@@ -1,0 +1,136 @@
+% JACoW bibliography extraction package
+%
+% This file embeds and customizes biblatex2bibitem for JACoW editorial use.
+% Based on biblatex2bibitem v0.2.2 by Nikolai Avdeev aka @nickkolok
+% and @odomanov, distributed under the LPPL 1.3c license.
+%
+% Local changes:
+% - package renamed to jacowbibextract
+% - dynamic thebibliography width using a two-pass auxiliary counter
+% - no generated {} separators before \bibitem
+% - \printbibitembibliography starts a clear, one-column extraction page
+% - DOI fields are emitted as literal \doi{...} for JACoW source
+
+\NeedsTeXFormat{LaTeX2e}[1994/06/01]
+\ProvidesPackage{jacowbibextract}
+  [2026/06/27 v0.1 JACoW biblatex bibliography to bibitem extraction]
+
+\RequirePackage{biblatex}
+\DeclareSourcemap{
+  \maps[datatype=bibtex]{
+    \map{
+      % Convert unicode forward/backward quotes to LaTeX commands globally
+      \step[match=\regexp{“}, replace=\regexp{\\textquotedblleft}]
+      \step[match=\regexp{”}, replace=\regexp{\\textquotedblright}]
+    }
+  }
+}
+% Width argument for the printed thebibliography environment.
+% This package prints source-like bibitems, so the argument is printed as text.
+% The value is learned from the previous LaTeX run. latexmk will rerun until stable.
+\newcounter{jxbe@bibitemcount}
+\newcommand*{\jxbe@bibitemwidth}{99}
+
+\newcommand{\jxbe@print@begin@thebibliography}{%
+  \setcounter{jxbe@bibitemcount}{0}%
+  \textbackslash begin\{thebibliography\}\{\jxbe@bibitemwidth\}%
+}
+
+\newcommand{\jxbe@writecount}{%
+  \if@filesw
+    \protected@write\@auxout{}{% 
+      \string\gdef\string\jxbe@bibitemwidth{\arabic{jxbe@bibitemcount}}}%
+  \fi
+}
+
+\newcommand{\jxbe@print@end@thebibliography}{\textbackslash end\{thebibliography\}}
+\newcommand{\jxbe@print@bibitem@command}{\textbackslash bibitem}
+
+\defbibenvironment{bibitembibliography}
+  {%
+   % Page numbers and page headings are not wanted when copying.
+   \thispagestyle{empty}%
+   \pagestyle{empty}%
+   \hyphenpenalty=10000%
+   \exhyphenpenalty=10000%
+   \emergencystretch=3em%
+   \raggedright%
+   % Ignore curly braces when putting dots to avoid
+   % \emph{Banach) \emph{S.}.
+   \sfcode`\{=\z@%
+   \sfcode`\}=\z@%
+   %
+   \renewcommand*{\&}{\textbackslash \symbol{38}}%
+\renewcommand*{\textquotedblleft}{\textbackslash textquotedblleft\{}%
+   \renewcommand*{\textquotedblright}{\}\textbackslash textquotedblright}%
+   \ifcsname mkbibsc\endcsname% Sometimes it is not defined.
+    \renewcommand*{\mkbibsc}[1]{\textbackslash textsc\{##1\}}%
+   \fi%
+   \renewcommand*{\texttt}[1]{\textbackslash texttt\{##1\}}%
+   \renewcommand*{\textit}[1]{\textbackslash textit\{##1\}}%
+   \renewcommand*{\textbf}[1]{\textbackslash textbf\{##1\}}%
+   \renewcommand*{\textsc}[1]{\textbackslash textsc\{##1\}}%
+   \renewcommand*{\emph}[1]{\textbackslash emph\{##1\}}%
+   %
+   \providecommand*{\nolinkurl}{\url}%
+   \renewcommand*{\nolinkurl}[1]{\textbackslash nolinkurl \{##1\}}%
+   \renewcommand*{\url}[1]{\textbackslash url \{##1\}}%
+   %
+   \ifcsname href\endcsname% Sometimes it is not defined.
+    \renewcommand*{\href}[2]{\textbackslash href \{##1\} \{##2\}}%
+   \fi%
+   %
+   \ifcsname hyperlink\endcsname% Sometimes it is not defined.
+    \renewcommand*{\hyperlink}[2]{\textbackslash hyperlink \{##1\} \{##2\}}%
+   \fi%
+   %
+   \renewcommand*{\mkbibemph}[1]{\textbackslash emph\{##1\}}%
+   \renewcommand*{\mkbibitalic}[1]{\textbackslash textit\{##1\}}%
+   \renewcommand*{\mkbibbold}[1]{\textbackslash textbf\{##1\}}%
+   \jxbe@print@begin@thebibliography%
+   \list{}{}%
+  }
+  {%
+   \endlist%
+   \jxbe@writecount%
+   \jxbe@print@end@thebibliography%
+   \thispagestyle{empty}%
+   \pagestyle{empty}%
+  }
+  {\stepcounter{jxbe@bibitemcount}\item\jxbe@print@bibitem@command\{\printfield{entrykey}\}\\}
+
+\newcommand{\utffriendlydetokenize}[1]{%
+\scantokens{%
+\catcode`\_=12
+\catcode`\^=12
+\catcode`\{=12
+\catcode`\}=12
+\catcode`\&=12
+\catcode`\$=12
+\catcode`\#=12
+\catcode`\~=12
+\catcode`\\=12
+#1%
+}%
+}
+
+\newcommand{\ignorespacesaftertitlecase}{\leavevmode\unskip}
+
+% JACoW wants literal \doi{...} in the copied bibitem source.
+\newcommand{\printbibitembibliography}{%
+	\clearpage%
+	\onecolumn%
+	\sloppy%
+	
+	% 1. Local override for DOI (Notice the ##1)
+	\DeclareFieldFormat{doi}{{\textbackslash}doi\{##1\}}%
+	
+	\DeclareFieldFormat{titlecase}{\utffriendlydetokenize{##1}\ignorespacesaftertitlecase}%
+	
+	% 2. Custom title override (or use heading=none to remove it completely)
+	\printbibliography[env=bibitembibliography, title=\NoCaseChange{JACoW Extracted Bibitems}]%
+}
+
+\endinput
+%%
+%% End of file `jacowbibextract.sty'.
