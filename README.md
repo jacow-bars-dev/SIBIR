@@ -168,9 +168,11 @@ Bibliography entries are separated by a blank line and %[#] labels, with each
 ```tex
 \begin{thebibliography}{2}
 
+%[1]
 \bibitem{first}
   A. Author, First reference.
 
+%[2]
 \bibitem{second}
   B. Author, Second reference.
 
