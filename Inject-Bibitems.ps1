@@ -139,6 +139,13 @@ try {
     $out = Join-Path $tex.DirectoryName ($tex.BaseName + '-final-bibitems.tex')
     if (Test-Path -LiteralPath $out) { Write-Warning "Replacing previous output: $out" }
     Set-Content -LiteralPath $out -Value $text -Encoding UTF8
+	$outPrefix = $tex.BaseName + '-bibitem-extract.'
+	Get-ChildItem -LiteralPath $tex.DirectoryName -File |
+    Where-Object {
+        $_.Name.StartsWith($outPrefix, [StringComparison]::OrdinalIgnoreCase) -and
+        $_.Extension -notin '.tex', '.pdf'
+    } |
+    Remove-Item -Force
     Write-Host "Created: $out"
     Write-Host ("Checked $($entries.Count) bibliography entries; added $changes nonbreaking spaces.")
     Write-Host 'Compile the final paper and check citations, reference text, and line breaks. Citations in included files or custom macros are not checked by this script.'
