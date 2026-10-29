@@ -58,6 +58,40 @@ try {
     if ($missing.Count -gt 0) {
         throw ('Copied bibliography is missing cited keys: ' + (($missing | Select-Object -Unique) -join ', ') + '. Check for missed pages, the wrong PDF, or unresolved citations in the paper.')
     }
+
+    # A DOI field occasionally arrives as a full DOI resolver URL. The JACoW
+    # \doi command expects the DOI itself, not its https://doi.org/ prefix.
+    # Restrict this rewrite to DOI arguments inside actual bibliography entries;
+    # URLs in \url commands and ordinary reference text are deliberately left
+    # unchanged.
+    $rawEntries = [regex]::Matches($bibitems, '\\bibitem\s*(?:\[[^\]]*\]\s*)?\{([^{}\s]+)\}')
+    $doiNormalizations = New-Object 'System.Collections.Generic.List[object]'
+    $doiPattern = [regex]'(?<command>\\doi\s*\{)(?<value>[^{}]*)(?<close>\})'
+    $bibitems = $doiPattern.Replace($bibitems, [System.Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        $value = $match.Groups['value'].Value
+        $normalized = [regex]::Replace($value, '(?i)^https?://(?:dx\.)?doi\.org/', '')
+        if ($normalized -eq $value) { return $match.Value }
+
+        $entryNumber = 0
+        foreach ($rawEntry in $rawEntries) {
+            if ($rawEntry.Index -gt $match.Index) { break }
+            $entryNumber++
+        }
+        if ($entryNumber -eq 0 -or $entryNumber -gt $keys.Count) {
+            # Do not alter a \doi command outside a copied bibliography entry.
+            return $match.Value
+        }
+
+        $doiNormalizations.Add([pscustomobject]@{
+            Number = $entryNumber
+            Key    = $keys[$entryNumber - 1]
+            From   = $value
+            To     = $normalized
+        })
+        return $match.Groups['command'].Value + $normalized + $match.Groups['close'].Value
+    })
+
     if ($sourceCode -match '\\(?:[A-Za-z]*cite[A-Za-z]*)\b' -and
         $sourceCode -match '\\(?:parencite|textcite|autocite|footcite|smartcite|supercite|fullcite|citeauthor|citetitle|citeyear|cites)\b') {
         Write-Warning 'The paper uses biblatex-specific citation commands. Review these commands in the final source; they may need conversion to \cite for a static bibliography.'
@@ -148,6 +182,9 @@ try {
     Remove-Item -Force
     Write-Host "Created: $out"
     Write-Host ("Checked $($entries.Count) bibliography entries; added $changes nonbreaking spaces.")
+    foreach ($normalization in $doiNormalizations) {
+        Write-Host ("Normalized DOI in reference [{0}] ({1}): {2} -> {3}" -f $normalization.Number, $normalization.Key, $normalization.From, $normalization.To)
+    }
     Write-Host 'Compile the final paper and check citations, reference text, and line breaks. Citations in included files or custom macros are not checked by this script.'
 }
 catch {
